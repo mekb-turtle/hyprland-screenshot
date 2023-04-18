@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 SCREENSHOTS_DIR="$HOME/screenshots"
 SCREENSHOT_NAME_FORMAT="screenshot-%Y.%m.%d.%H.%M.%S"
-if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "screen" ]] || [[ "$1" == "output" ]] || [[ "$1" == "color" ]]; then
+if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "screen" ]] || [[ "$1" == "output" ]] || [[ "$1" == "screen" ]] || [[ "$1" == "color" ]]; then
 	if ! pidof slurp hyprpicker; then
 		if [[ "$1" == "color" ]]; then
 			hex="$(hyprpicker)"
@@ -17,7 +17,7 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "screen" ]] || [
 			hyprpicker -r -z & pickerproc="$!"
 			mkdir -p -- "$SCREENSHOTS_DIR"
 			file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
-			grimblast save area - | tee "$file" | wl-copy --type image/png
+			grimblast save "$1" - | tee "$file" | wl-copy --type image/png
 			kill -- "$pickerproc"
 			notify-send -i "$file" -- "Saved screenshot" "$file"
 			exit $?
