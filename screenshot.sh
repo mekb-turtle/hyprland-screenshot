@@ -5,13 +5,14 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 	if ! pidof -s slurp; then
 		GEOM=""
 		pickerproc=""
-		movedcursor=n
+		movedcursor=
+		if [[ "$WLR_NO_HARDWARE_CURSORS" == "1" ]]; then
+			movedcursor=true
+			C2="$(hyprctl monitors -j | jq -r 'map({ x: (.x + .width), y: (.y + .height) }) | [ ((map(.x) | max) - 1), ((map(.y) | max) - 1) ] | join(" ")')"
+		fi
 		# some of this code comes from https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
 		case "$1" in
 			area)
-				C="$(hyprctl cursorpos)"
-				C="${C/,/}"
-				movedcursor=y
 				hyprpicker -r -z & pickerproc="$!"
 				sleep 0.1
 				if ! ps -p "$pickerproc" > /dev/null; then echo "hyprpicker failed to start"; exit 1; fi
@@ -28,15 +29,17 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 				GEOM="$(hyprctl monitors -j | jq '.[] | select(.focused == true)' | jq -r '"\(.x),\(.y) \(.width)x\(.height)"')"
 				;;
 		esac
+		C="$(hyprctl cursorpos)"
+		C="${C/,/}"
 		ARGS=()
 		[[ -n "$GEOM" ]] && ARGS=( -g "$GEOM" )
 		mkdir -p -- "$SCREENSHOTS_DIR"
 		file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
-		[[ "$movedcursor" == "y" ]] && hyprctl dispatch movecursor $(hyprctl monitors -j | jq -r 'map({ x: (.x + .width), y: (.y + .height) }) | [ ((map(.x) | max) - 1), ((map(.y) | max) - 1) ][]')
+		[[ "$movedcursor" ]] && hyprctl dispatch movecursor "$C2"
 		grim -c "${ARGS[@]}" "$file"
 		wl-copy --type image/png < "$file" || xclip -selection clipboard -target "image/png" -i < "$file"
 		[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
-		[[ "$movedcursor" == "y" ]] && hyprctl dispatch movecursor "$C"
+		[[ "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
 		notify-send -i "$file" -- "Saved screenshot" "$file"
 		exit "$?"
 	else
