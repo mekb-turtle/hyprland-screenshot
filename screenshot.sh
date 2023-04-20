@@ -35,11 +35,11 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 		[[ -n "$GEOM" ]] && ARGS=( -g "$GEOM" )
 		mkdir -p -- "$SCREENSHOTS_DIR"
 		file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
-		[[ "$movedcursor" ]] && hyprctl dispatch movecursor "$C2"
+		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C2"
 		grim -c "${ARGS[@]}" "$file"
 		wl-copy --type image/png < "$file" || xclip -selection clipboard -target "image/png" -i < "$file"
 		[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
-		[[ "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
+		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
 		notify-send -i "$file" -- "Saved screenshot" "$file"
 		exit "$?"
 	else
