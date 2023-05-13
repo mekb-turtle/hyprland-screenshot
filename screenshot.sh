@@ -5,7 +5,7 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 	if ! pidof -s slurp; then
 		GEOM=""
 		pickerproc=""
-		movedcursor=
+		movedcursor=""
 		if [[ "$WLR_NO_HARDWARE_CURSORS" == "1" ]]; then
 			movedcursor=true
 			C2="$(hyprctl monitors -j | jq -r 'map({ x: (.x + .width), y: (.y + .height) }) | [ ((map(.x) | max) - 1), ((map(.y) | max) - 1) ] | join(" ")')"
@@ -15,11 +15,15 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 			area)
 				hyprpicker -r -z & pickerproc="$!"
 				sleep 0.1
-				if ! ps -p "$pickerproc" > /dev/null; then echo "hyprpicker failed to start"; exit 1; fi
 				GEOM="$({
 					hyprctl clients -j | jq -r --argjson w "$(hyprctl monitors -j | jq 'map(.activeWorkspace.id)')" 'map(select([.workspace.id] | inside($w)))' | jq -r '.[] | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
 					hyprctl monitors -j | jq -r '.[] | "\(.x),\(.y) \(.width)x\(.height)"'
 				} | slurp)"
+				if [[ -z "$GEOM" ]]; then
+					[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
+					[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
+					exit 1
+				fi
 				echo "$WINDOWS"
 				;;
 			active)
@@ -29,6 +33,7 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 				GEOM="$(hyprctl monitors -j | jq '.[] | select(.focused == true)' | jq -r '"\(.x),\(.y) \(.width)x\(.height)"')"
 				;;
 		esac
+		if ! ps -p "$pickerproc" > /dev/null; then echo "hyprpicker failed to start"; pickerproc=""; movedcursor=""; fi
 		C="$(hyprctl cursorpos)"
 		C="${C/,/}"
 		ARGS=()
@@ -37,6 +42,7 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 		file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
 		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C2"
 		grim -c "${ARGS[@]}" "$file"
+		convert "$file" -set geometry "$GEOM" "$file" # remove if you do not want to store metadata about screenshot geometry, required by screenshotpreview
 		wl-copy --type image/png < "$file" || xclip -selection clipboard -target "image/png" -i < "$file"
 		[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
 		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
