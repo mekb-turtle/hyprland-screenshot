@@ -3,49 +3,49 @@ SCREENSHOTS_DIR="$HOME/screenshots"
 SCREENSHOT_NAME_FORMAT="screenshot-%Y.%m.%d.%H.%M.%S"
 if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || [[ "$1" == "desktop" ]]; then
 	if ! pidof -s slurp; then
-		GEOM=""
-		pickerproc=""
-		movedcursor=""
-		if [[ "$WLR_NO_HARDWARE_CURSORS" == "1" ]]; then
-			movedcursor=true
-			C2="$(hyprctl monitors -j | jq -r 'map({ x: (.x + .width), y: (.y + .height) }) | [ ((map(.x) | max) - 1), ((map(.y) | max) - 1) ] | join(" ")')"
-		fi
+		unset GEOM GEOM_POS GEOM_SIZE GEOM_WIN GEOM_WIN_EXTRA
+		unset PICKER_PROC
 		# some of this code comes from https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
 		case "$1" in
 			area)
-				hyprpicker -r -z & pickerproc="$!"
+				hyprpicker -r -z & PICKER_PROC="$!"
 				sleep 0.1
 				GEOM="$({
-					hyprctl clients -j | jq -r --argjson w "$(hyprctl monitors -j | jq 'map(.activeWorkspace.id)')" 'map(select([.workspace.id] | inside($w)))' | jq -r '.[] | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
+					hyprctl clients -j | jq -r --argjson w "$(hyprctl monitors -j | jq 'map(.activeWorkspace.id)')" 'map(select(([.workspace.id] | inside($w)) and .mapped and (.hidden | not)))' | jq -r '.[] | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1]) \(.address) \(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
 					hyprctl monitors -j | jq -r '.[] | "\(.x),\(.y) \(.width)x\(.height)"'
-				} | slurp)"
+				} | slurp -f "%x,%y %wx%h %l")"
 				if [[ -z "$GEOM" ]]; then
-					[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
-					[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
+					[[ -n "$PICKER_PROC" ]] && kill -- "$PICKER_PROC"
 					exit 1
 				fi
+				sleep 0.5
 				echo "$WINDOWS"
 				;;
 			active)
-				GEOM="$(hyprctl activewindow -j | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')"
+				GEOM="$(hyprctl activewindow -j | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1]) \(.address) active"')"
 				;;
 			monitor)
 				GEOM="$(hyprctl monitors -j | jq '.[] | select(.focused == true)' | jq -r '"\(.x),\(.y) \(.width)x\(.height)"')"
 				;;
 		esac
-		if ! ps -p "$pickerproc" > /dev/null; then echo "hyprpicker failed to start"; pickerproc=""; movedcursor=""; fi
-		C="$(hyprctl cursorpos)"
-		C="${C/,/}"
+		if ! ps -p "$PICKER_PROC" > /dev/null; then echo "hyprpicker failed to start"; PICKER_PROC= ; fi
 		ARGS=()
-		[[ -n "$GEOM" ]] && ARGS=( -g "$GEOM" )
+		if [[ -n "$GEOM" ]]; then
+			IFS=' ' read -r GEOM_POS GEOM_SIZE GEOM_WIN GEOM_WIN_EXTRA <<< "$GEOM"
+			GEOM="$GEOM_POS $GEOM_SIZE"
+			if [[ "$GEOM_WIN_EXTRA" != "active" ]] && [[ "$GEOM_WIN_EXTRA" != "$GEOM" ]]; then
+				unset GEOM_WIN
+			fi
+			unset GEOM_WIN_EXTRA
+			# TODO: take screenshot of window without window decoration
+			ARGS=( -g "$GEOM" )
+		fi
 		mkdir -p -- "$SCREENSHOTS_DIR"
 		file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
-		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C2"
 		grim -c "${ARGS[@]}" "$file"
-		convert "$file" -set geometry "$GEOM" "$file" # remove if you do not want to store metadata about screenshot geometry, required by screenshotpreview
+		convert "$file" -set geometry "$GEOM" "$file"
 		wl-copy --type image/png < "$file" || xclip -selection clipboard -target "image/png" -i < "$file"
-		[[ -n "$pickerproc" ]] && kill -- "$pickerproc"
-		[[ -n "$movedcursor" ]] && hyprctl dispatch movecursor "$C"
+		[[ -n "$PICKER_PROC" ]] && kill -- "$PICKER_PROC"
 		notify-send -i "$file" -- "Saved screenshot" "$file"
 		exit "$?"
 	else
@@ -72,6 +72,7 @@ elif [[ "$1" == "check" ]]; then
 	if ! type mkdir;       then echo "mkdir not found";       exit 1; fi
 	if ! type grim;        then echo "grim not found";        exit 1; fi
 	if ! type tee;         then echo "tee not found";         exit 1; fi
+	if ! type read;        then echo "read not found";        exit 1; fi
 	if ! type slurp;       then echo "slurp not found";       exit 1; fi
 	if ! type wl-copy;     then echo "wl-copy not found";     fi
 	if ! type xclip;       then echo "xclip not found";       fi
