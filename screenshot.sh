@@ -12,7 +12,7 @@ if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || 
 				sleep 0.1
 				GEOM="$({
 					hyprctl clients -j | jq -r --argjson w "$(hyprctl monitors -j | jq 'map(.activeWorkspace.id)')" 'map(select(([.workspace.id] | inside($w)) and .mapped and (.hidden | not)))' | jq -r '.[] | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1]) \(.address) \(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"'
-					hyprctl monitors -j | jq -r '.[] | "\(.x),\(.y) \(.width)x\(.height)"'
+					hyprctl monitors -j | jq -r '. | map(if .transform % 2 == 1 then . + {width: .height, height: .width} else . end) | .[] | "\(.x),\(.y) \(.width)x\(.height)"'
 				} | slurp -f "%x,%y %wx%h %l")"
 				if [[ -z "$GEOM" ]]; then
 					[[ -n "$PICKER_PROC" ]] && kill -- "$PICKER_PROC"
