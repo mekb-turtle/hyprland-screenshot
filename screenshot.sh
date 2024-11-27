@@ -57,7 +57,7 @@ function screenshot() {
 				if [[ "$GEOM_EXTRA" != "active" ]] && [[ "$GEOM_EXTRA" != "$GEOM" ]]; then
 					unset GEOM_WIN
 				else
-					notify-send window
+					: # TODO
 				fi
 				# TODO: take screenshot of window without window decoration
 				ARGS=(-g "$GEOM")
