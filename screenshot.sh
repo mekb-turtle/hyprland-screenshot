@@ -14,9 +14,12 @@ function list-monitors() {
 	hyprctl monitors -j | jq -r '. | map(if .transform % 2 == 1 then . + {width: .height, height: .width} else . end) | .[] | "\(.x),\(.y) \(.width)x\(.height)"'
 }
 function screenshot() {
-	local SCREENSHOTS_DIR SCREENSHOT_NAME_FORMAT PICKER_PROC GEOM GEOM_POS GEOM_SIZE GEOM_WIN GEOM_EXTRA
+	local SCREENSHOTS_DIR PICKER_PROC GEOM GEOM_POS GEOM_SIZE GEOM_WIN GEOM_EXTRA SCREENSHOT_NAME_FORMAT SCREENSHOT_NAME_FORMAT_LATEST file file_latest
+	local -a ARGS
+	local hex rgb f
 	SCREENSHOTS_DIR="$HOME/screenshots"
 	SCREENSHOT_NAME_FORMAT="screenshot-%Y.%m.%d.%H.%M.%S"
+	SCREENSHOT_NAME_FORMAT_LATEST="latest"
 	if [[ "$1" == "area" ]] || [[ "$1" == "active" ]] || [[ "$1" == "monitor" ]] || [[ "$1" == "desktop" ]]; then
 		if ! pidof -s slurp; then
 			# some of this code comes from https://github.com/hyprwm/contrib/blob/main/grimblast/grimblast
@@ -64,11 +67,16 @@ function screenshot() {
 			fi
 			mkdir -p -- "$SCREENSHOTS_DIR"
 			file="$SCREENSHOTS_DIR/$(date -- +"$SCREENSHOT_NAME_FORMAT").png"
+			file_latest="$SCREENSHOTS_DIR/$SCREENSHOT_NAME_FORMAT_LATEST.png"
 			grim "${ARGS[@]}" "$file"
 			magick "$file" -set geometry "$GEOM" "$file"
 			wl-copy --type image/png <"$file" || xclip -selection clipboard -target "image/png" -i <"$file"
 			[[ -n "$PICKER_PROC" ]] && kill -- "$PICKER_PROC"
 			notify-send -i "$file" -- "Saved screenshot" "$file"
+			if [[ -e "$file_latest" ]]; then
+				rm -- "$file_latest" || true
+			fi
+			ln -- "${file[0]}" "$file_latest"
 			return "$?"
 		else
 			echo "slurp or hyprpicker is already running, not taking a screenshot" >&2
